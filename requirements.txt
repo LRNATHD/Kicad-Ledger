@@ -1,0 +1,6 @@
+# KiCad-StockCheck Requirements
+# Note: If running with KiCad's bundled Python (recommended), all required
+# libraries (wxPython, sqlite3, ctypes) are pre-installed out of the box!
+# Zero external packages need to be installed.
+
+wxPython>=4.2.0

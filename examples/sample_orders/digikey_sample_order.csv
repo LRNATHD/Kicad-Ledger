@@ -1,0 +1,7 @@
+"Salesorder Number","Digi-Key Part Number","Manufacturer Part Number","Manufacturer","Description","Quantity Ordered","Unit Price (USD)","Package / Case"
+"9823145","311-10.0KCRCT-ND","RC0805FR-0710KL","Yageo","RES SMD 10K OHM 1% 1/8W 0805","50","0.015","0805 (2012 Metric)"
+"9823145","311-1.00KCRCT-ND","RC0805FR-071KL","Yageo","RES SMD 1K OHM 1% 1/8W 0805","50","0.015","0805 (2012 Metric)"
+"9823145","1276-1002-1-ND","CL21B104KBCNNNC","Samsung Electro-Mechanics","CAP CER 0.1UF 50V X7R 0805","100","0.021","0805 (2012 Metric)"
+"9823145","1276-1005-1-ND","CL21A106KPFNNNE","Samsung Electro-Mechanics","CAP CER 10UF 10V X5R 0805","25","0.055","0805 (2012 Metric)"
+"9823145","296-1411-5-ND","NE555P","Texas Instruments","IC OSC SGL TIMER 100KHZ 8-DIP","10","0.62","8-DIP (0.300"", 7.62mm)"
+"9823145","1568-1856-ND","ESP32-WROOM-32E(4MB)","Espressif Systems","SMD MODULE ESP32-WROOM-32E 4MB","5","3.80","Module"

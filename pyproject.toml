@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kicad-stockcheck"
+version = "1.0.0"
+description = "Fast, local-only component inventory checker and KiCad board BOM verifier."
+authors = [{ name = "KiCad Community" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "wxPython>=4.2.0; platform_system!='Emscripten'"
+]
+
+[project.scripts]
+kicad-stockcheck = "stockcheck.ui.main_frame:StockCheckFrame"
