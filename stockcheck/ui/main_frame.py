@@ -23,7 +23,26 @@ class StockCheckFrame(wx.Frame):
         self.board_name = board_name
 
         self._init_ui()
+        self._set_frame_icon()
+        self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Centre()
+
+    def _set_frame_icon(self):
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets", "icon.ico")
+        if os.path.exists(icon_path):
+            try:
+                icon = wx.Icon(icon_path, wx.BITMAP_TYPE_ICO)
+                self.SetIcon(icon)
+            except Exception:
+                pass
+
+    def on_close(self, event):
+        # Minimize/hide to background tray instead of destroying
+        if event.CanVeto():
+            event.Veto()
+            self.Hide()
+        else:
+            self.Destroy()
 
     def _init_ui(self):
         panel = wx.Panel(self)
