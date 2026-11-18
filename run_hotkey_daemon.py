@@ -43,7 +43,7 @@ class HotkeyApp:
 
     def start(self):
         print("=" * 65)
-        print("KiCad-StockCheck Background Hotkey Daemon Running")
+        print("KiCad-Ledger Background Hotkey Daemon Running")
         print(f"Hotkey: [{self.hotkey.upper()}] (or press F8 if configured)")
         print("Rule  : Only activates when KiCad is the active foreground window.")
         print("=" * 65)

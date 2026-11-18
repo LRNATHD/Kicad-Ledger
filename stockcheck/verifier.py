@@ -166,7 +166,7 @@ class BoardVerifier:
                         alternatives.extend(compatibles)
 
         # 4. Check active/other components where value is the part name (e.g. STM32F401, AMS1117-3.3, 1N4148)
-        if not matched and grp.value:
+        if not matched and grp.value and grp.value.strip() not in ("~", "-"):
             val_mpn_matches = self.db.find_by_mpn(grp.value)
             for cand in val_mpn_matches:
                 if packages_match(cand.package, grp.package):
@@ -175,6 +175,15 @@ class BoardVerifier:
                     break
             if not matched and val_mpn_matches:
                 alternatives.extend(val_mpn_matches)
+
+        # 5. Fallback for value-less parts (e.g. batteries, mechanicals) matched by exact package/footprint
+        if not matched and grp.package and not grp.mpn and grp.value.strip() in ("", "~", "-"):
+            pkg_matches = self.db.search_components(package=grp.package)
+            for cand in pkg_matches:
+                if packages_match(cand.package, grp.package):
+                    matched = cand
+                    match_type = f"Package match ({cand.package})"
+                    break
 
         # Determine final status based on available quantity
         if matched:

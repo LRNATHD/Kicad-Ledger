@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  ⚡ KiCad-StockCheck ⚡
+  ⚡ KiCad-Ledger ⚡
   <br>
 </h1>
 
@@ -31,13 +31,13 @@
 
 ## 🎯 Overview
 
-**KiCad-StockCheck** is a local-first electronics inventory manager and board checker tailored for KiCad designers. 
+**KiCad-Ledger** is a local-first electronics inventory manager and board checker tailored for KiCad designers. 
 
-Instead of juggling Excel spreadsheets, searching physical bins by hand, or using cloud services that track your bill of materials, **KiCad-StockCheck** runs completely on your machine. With a single keybind that **only fires when KiCad is open**, it instantly pops up over your schematic or PCB, cross-references all components against your real physical stock, and alerts you to missing parts before you start assembly.
+Instead of juggling Excel spreadsheets, searching physical bins by hand, or using cloud services that track your bill of materials, **KiCad-Ledger** runs completely on your machine. With a single keybind that **only fires when KiCad is open**, it instantly pops up over your schematic or PCB, cross-references all components against your real physical stock, and alerts you to missing parts before you start assembly.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ KiCad-StockCheck — Demo Board (Fulfillment: 91.3%)                     [✕]             │
+│ KiCad-Ledger — Demo Board (Fulfillment: 91.3%)                     [✕]             │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ [📁 Open Board] [🔄 Re-Verify]   Total: 34 | ✓ In Stock: 14 | ⚠ Low: 1 | ❌ Missing: 1  │
 ├────────────┬────────┬───────────┬──────────────┬─────────┬──────────────┬──────────────┤
@@ -127,7 +127,7 @@ Then click **✓ Confirm & Save to Local Inventory Database**.
 ## 🧠 Smart Normalization Engine
 
 ### 1. Passive Values
-KiCad-StockCheck normalizes all engineering multipliers to base SI units:
+KiCad-Ledger normalizes all engineering multipliers to base SI units:
 
 | Board Value | Inventory Value | Match Status | Note |
 | :--- | :--- | :---: | :--- |

@@ -10,11 +10,24 @@ if repo_root not in sys.path:
 
 import wx
 from stockcheck.ui.main_frame import StockCheckFrame
+from stockcheck.kicad_parser import KiCadParser, find_open_kicad_board
 
 
 def main():
     app = wx.App(False)
-    frame = StockCheckFrame()
+    board_items = None
+    board_name = ""
+
+    open_path = find_open_kicad_board()
+    if open_path and os.path.exists(open_path):
+        try:
+            board_items = KiCadParser.parse_file(open_path)
+            board_name = os.path.basename(open_path)
+        except Exception:
+            board_items = None
+            board_name = ""
+
+    frame = StockCheckFrame(board_items=board_items, board_name=board_name)
     frame.Show()
     app.MainLoop()
 

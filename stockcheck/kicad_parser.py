@@ -215,3 +215,56 @@ class KiCadParser:
             lcsc=lcsc,
             dnp=dnp
         )
+
+
+def find_open_kicad_board() -> str:
+    """Detect an actively open KiCad board (.kicad_pcb) or schematic (.kicad_sch).
+
+    Inspects %APPDATA%\\kicad\\*\\kicad.json for open_projects and recent file_history,
+    prioritizing projects with active KiCad lock files (~*.kicad_pcb.lck / ~*.kicad_sch.lck).
+    """
+    import glob
+    import json
+
+    appdata = os.environ.get("APPDATA", "")
+    if not appdata:
+        return ""
+
+    kicad_base = os.path.join(appdata, "kicad")
+    if not os.path.isdir(kicad_base):
+        return ""
+
+    config_files = sorted(glob.glob(os.path.join(kicad_base, "*", "kicad.json")), reverse=True)
+    candidate_dirs = []
+    open_proj_dirs = []
+
+    for cfg_path in config_files:
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            sys_sec = data.get("system", {})
+            for p in sys_sec.get("open_projects") or []:
+                d = os.path.dirname(p)
+                if os.path.isdir(d) and d not in open_proj_dirs:
+                    open_proj_dirs.append(d)
+            for p in sys_sec.get("file_history") or []:
+                d = os.path.dirname(p)
+                if os.path.isdir(d) and d not in candidate_dirs:
+                    candidate_dirs.append(d)
+        except Exception:
+            continue
+
+    for d in open_proj_dirs + candidate_dirs:
+        for ext in (".kicad_pcb", ".kicad_sch"):
+            for lck in glob.glob(os.path.join(d, f"~*{ext}.lck")):
+                target = os.path.join(d, os.path.basename(lck)[1:-4])
+                if os.path.isfile(target):
+                    return target
+
+    for d in open_proj_dirs:
+        for ext in ("*.kicad_pcb", "*.kicad_sch"):
+            matches = glob.glob(os.path.join(d, ext))
+            if matches:
+                return matches[0]
+
+    return ""

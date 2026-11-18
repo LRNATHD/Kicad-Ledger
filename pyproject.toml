@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kicad-stockcheck"
+name = "kicad-ledger"
 version = "1.0.0"
 description = "Fast, local-only component inventory checker and KiCad board BOM verifier."
 authors = [{ name = "KiCad Community" }]
@@ -15,4 +15,4 @@ dependencies = [
 ]
 
 [project.scripts]
-kicad-stockcheck = "stockcheck.ui.main_frame:StockCheckFrame"
+kicad-ledger = "stockcheck.ui.main_frame:StockCheckFrame"

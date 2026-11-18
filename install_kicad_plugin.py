@@ -72,7 +72,7 @@ except Exception as e:
 
     if installed_paths:
         paths_str = "\n".join(installed_paths[:3])
-        msg = f"Successfully installed KiCad-StockCheck plugin to:\n{paths_str}\n\nRestart KiCad or press 'Refresh Plugins' in KiCad PCB Editor."
+        msg = f"Successfully installed KiCad-Ledger plugin to:\n{paths_str}\n\nRestart KiCad or press 'Refresh Plugins' in KiCad PCB Editor."
         return True, msg
     else:
         return False, "Could not find any KiCad user directory in %APPDATA%\\kicad."

@@ -15,7 +15,7 @@ from stockcheck.ui.import_panel import ImportPanel
 class StockCheckFrame(wx.Frame):
     """Main application frame holding the notebook tabs."""
 
-    def __init__(self, parent=None, title="KiCad-StockCheck — Component Verifier & Inventory",
+    def __init__(self, parent=None, title="KiCad-Ledger — Component Verifier & Inventory",
                  board_items=None, board_name=""):
         super().__init__(parent, title=title, size=(1080, 720))
         self.db = Database()
@@ -27,6 +27,41 @@ class StockCheckFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Centre()
 
+    def Show(self, show=True):
+        res = super().Show(show)
+        if show:
+            wx.CallAfter(self.bring_to_front)
+        return res
+
+    def bring_to_front(self):
+        """Ensure the window pops up in front of KiCad and other apps."""
+        if self.IsIconized():
+            self.Iconize(False)
+        self.Raise()
+        self.SetFocus()
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                kernel32 = ctypes.windll.kernel32
+                hwnd = self.GetHandle()
+                fg = user32.GetForegroundWindow()
+                fg_tid = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+                cur_tid = kernel32.GetCurrentThreadId()
+                attached = False
+                if fg_tid and fg_tid != cur_tid:
+                    attached = bool(user32.AttachThreadInput(cur_tid, fg_tid, True))
+                try:
+                    user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0040)
+                    user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0040)
+                    user32.SetForegroundWindow(hwnd)
+                    user32.BringWindowToTop(hwnd)
+                finally:
+                    if attached:
+                        user32.AttachThreadInput(cur_tid, fg_tid, False)
+            except Exception:
+                pass
+
     def _set_frame_icon(self):
         icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets", "icon.ico")
         if os.path.exists(icon_path):
@@ -37,12 +72,7 @@ class StockCheckFrame(wx.Frame):
                 pass
 
     def on_close(self, event):
-        # Minimize/hide to background tray instead of destroying
-        if event.CanVeto():
-            event.Veto()
-            self.Hide()
-        else:
-            self.Destroy()
+        self.Destroy()
 
     def _init_ui(self):
         panel = wx.Panel(self)
@@ -52,7 +82,10 @@ class StockCheckFrame(wx.Frame):
         self.notebook = wx.Notebook(panel)
 
         # 1. Board Verifier Tab
-        self.tab_verifier = VerifierPanel(self.notebook, self.db, self.board_items, self.board_name)
+        self.tab_verifier = VerifierPanel(
+            self.notebook, self.db, self.board_items, self.board_name,
+            on_data_updated=self.on_data_updated
+        )
         self.notebook.AddPage(self.tab_verifier, "🔍 Board Verifier")
 
         # 2. Inventory Search Tab
@@ -76,6 +109,11 @@ class StockCheckFrame(wx.Frame):
         self.SetStatusText("🔒 Local Privacy: Git Excluded", 1)
 
         panel.SetSizer(sizer)
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(panel, 1, wx.EXPAND)
+        self.SetSizer(frame_sizer)
+        panel.Layout()
+        self.Layout()
 
     def on_data_updated(self):
         """Called when a new order is imported or inventory modified."""

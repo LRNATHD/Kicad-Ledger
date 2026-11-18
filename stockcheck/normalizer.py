@@ -21,8 +21,12 @@ EIA_IMPERIAL_TO_METRIC = {
 EIA_METRIC_TO_IMPERIAL = {v: k for k, v in EIA_IMPERIAL_TO_METRIC.items()}
 
 
-def normalize_package(pkg_str: str) -> str:
-    """Normalize a footprint/package string to a canonical package name."""
+def normalize_package(pkg_str: str, strict: bool = False) -> str:
+    """Normalize a footprint/package string to a canonical package name.
+
+    When strict=True, returns "" if no recognized package pattern is found
+    (useful when scanning free-form description text).
+    """
     if not pkg_str:
         return ""
     
@@ -58,10 +62,20 @@ def normalize_package(pkg_str: str) -> str:
         return "01005"
 
     # SOT packages
+    m = re.search(r"TSOT[-_ ]?23(?:[-_ ]?(\d+))?", clean)
+    if m:
+        pin = m.group(1)
+        return f"SOT-23-{pin}" if pin and pin not in ("3", "") else "SOT-23"
     m = re.search(r"SOT[-_ ]?23(?:[-_ ]?(\d+))?", clean)
     if m:
         pin = m.group(1)
         return f"SOT-23-{pin}" if pin and pin not in ("3", "") else "SOT-23"
+    if re.search(r"SOT[-_ ]?25\b", clean):
+        return "SOT-23-5"
+    m = re.search(r"SC[-_ ]?70(?:[-_ ]?(\d+))?", clean)
+    if m:
+        pin = m.group(1)
+        return f"SC-70-{pin}" if pin else "SC-70"
     if "SOT223" in clean or "SOT-223" in clean:
         return "SOT-223"
     if "SOT89" in clean or "SOT-89" in clean:
@@ -99,10 +113,14 @@ def normalize_package(pkg_str: str) -> str:
     if m:
         return f"MSOP-{m.group(1)}"
 
-    # QFN / DFN / QFP
-    m = re.search(r"(?:V|W)?QFN[-_ ]?(\d+)", clean)
+    # QFN / DFN / QFP / WSON
+    m = re.search(r"(?:V|W|VF|WQ)?QFP?N[-_ ]?(\d+)", clean)
     if m:
         return f"QFN-{m.group(1)}"
+    m = re.search(r"(\d+)WSON|WSON[-_ ]?(\d+)", clean)
+    if m:
+        pin = m.group(1) or m.group(2)
+        return f"WSON-{pin}"
     m = re.search(r"DFN[-_ ]?(\d+)", clean)
     if m:
         return f"DFN-{m.group(1)}"
@@ -124,6 +142,9 @@ def normalize_package(pkg_str: str) -> str:
         return "TO-263"
     if "AXIAL" in clean:
         return "Axial"
+
+    if strict:
+        return ""
 
     # Fallback: clean symbols, remove pad descriptions
     clean = re.sub(r"_PAD.*$", "", clean)
@@ -372,6 +393,7 @@ def clean_mpn(mpn_str: str) -> str:
     s = re.sub(r"#PBF$", "", s)
     s = re.sub(r"/NOPB$", "", s)
     s = re.sub(r"-ND$", "", s)  # DigiKey suffix
+    s = re.sub(r"_C\d{4,}$", "", s)  # EasyEDA / LCSC SKU suffix (e.g. TP4057_C725791)
     return s.strip()
 
 
@@ -415,7 +437,7 @@ def infer_category(ref: str = "", desc: str = "", value: str = "") -> str:
         return "resistor"
     if "CAPACITOR" in desc_up or "CAP " in desc_up:
         return "capacitor"
-    if "INDUCTOR" in desc_up:
+    if "INDUCTOR" in desc_up or "FIXED IND" in desc_up:
         return "inductor"
     if "DIODE" in desc_up:
         return "diode"

@@ -6,9 +6,12 @@ from typing import List, Optional, Dict, Any
 import wx
 import wx.dataview as dv
 
-from stockcheck.models import BoardItem
+from stockcheck.models import BoardItem, Component
 from stockcheck.db import Database
-from stockcheck.kicad_parser import KiCadParser
+from stockcheck.kicad_parser import KiCadParser, find_open_kicad_board
+from stockcheck.normalizer import (
+    clean_mpn, parse_resistor_value, parse_capacitor_value, parse_inductor_value
+)
 from stockcheck.verifier import BoardVerifier, GroupedBoardMatch
 from stockcheck.ui.theme import (
     COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER, COLOR_INFO, COLOR_DNP,
@@ -19,12 +22,15 @@ from stockcheck.ui.theme import (
 class VerifierPanel(wx.Panel):
     """Interactive board verification panel."""
 
-    def __init__(self, parent, db: Database, board_items: Optional[List[BoardItem]] = None, board_name: str = ""):
+    def __init__(self, parent, db: Database, board_items: Optional[List[BoardItem]] = None,
+                 board_name: str = "", on_data_updated=None):
         super().__init__(parent)
         self.db = db
         self.board_items = board_items or []
         self.board_name = board_name
+        self.on_data_updated = on_data_updated
         self.current_results: List[GroupedBoardMatch] = []
+        self.visible_results: List[GroupedBoardMatch] = []
         self.current_filter = "ALL"
 
         self._init_ui()
@@ -48,6 +54,10 @@ class VerifierPanel(wx.Panel):
         btn_browse = wx.Button(self, label="📁 Open .kicad_pcb / .kicad_sch")
         btn_browse.Bind(wx.EVT_BUTTON, self.on_browse_file)
         file_sizer.Add(btn_browse, 0, wx.ALL, 5)
+
+        btn_detect = wx.Button(self, label="🔍 Detect Open Board")
+        btn_detect.Bind(wx.EVT_BUTTON, self.on_detect_open)
+        file_sizer.Add(btn_detect, 0, wx.ALL, 5)
 
         btn_sample = wx.Button(self, label="⚡ Load Sample Board")
         btn_sample.Bind(wx.EVT_BUTTON, self.on_load_sample)
@@ -94,6 +104,10 @@ class VerifierPanel(wx.Panel):
 
         filter_sizer.AddStretchSpacer()
 
+        btn_own = wx.Button(self, label="✓ I Own This")
+        btn_own.Bind(wx.EVT_BUTTON, self.on_mark_owned)
+        filter_sizer.Add(btn_own, 0, wx.RIGHT, 5)
+
         btn_copy_missing = wx.Button(self, label="📋 Copy Missing to Clipboard")
         btn_copy_missing.Bind(wx.EVT_BUTTON, self.on_copy_missing)
         filter_sizer.Add(btn_copy_missing, 0, wx.RIGHT, 5)
@@ -105,7 +119,7 @@ class VerifierPanel(wx.Panel):
         main_sizer.Add(filter_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
         # Verification Results Table
-        self.list_ctrl = dv.DataViewListCtrl(self, style=wx.BORDER_THEME | dv.DV_ROW_LINES)
+        self.list_ctrl = dv.DataViewListCtrl(self, style=wx.BORDER_THEME | dv.DV_ROW_LINES | dv.DV_MULTIPLE)
         self.list_ctrl.AppendTextColumn("Status", width=110)
         self.list_ctrl.AppendTextColumn("Needed", width=60, align=wx.ALIGN_RIGHT)
         self.list_ctrl.AppendTextColumn("Available", width=70, align=wx.ALIGN_RIGHT)
@@ -145,6 +159,7 @@ class VerifierPanel(wx.Panel):
 
     def apply_filter(self):
         self.list_ctrl.DeleteAllItems()
+        self.visible_results = []
         sel = self.choice_filter.GetSelection()
 
         status_symbols = {
@@ -162,6 +177,8 @@ class VerifierPanel(wx.Panel):
                 continue
             elif sel == 3 and grp.status != "IN_STOCK":
                 continue
+
+            self.visible_results.append(grp)
 
             ref_str = ", ".join(grp.references[:8])
             if len(grp.references) > 8:
@@ -188,6 +205,80 @@ class VerifierPanel(wx.Panel):
 
     def on_filter_changed(self, event):
         self.apply_filter()
+
+    def on_detect_open(self, event):
+        open_path = find_open_kicad_board()
+        if open_path and os.path.exists(open_path):
+            try:
+                items = KiCadParser.parse_file(open_path)
+                self.set_board_items(items, os.path.basename(open_path))
+            except Exception as e:
+                wx.MessageBox(f"Failed to parse open board: {e}", "Parse Error", wx.OK | wx.ICON_ERROR)
+        else:
+            wx.MessageBox(
+                "No open KiCad board or schematic was detected.\n"
+                "Make sure a project is open in KiCad, or use 'Open .kicad_pcb / .kicad_sch' to select it manually.",
+                "No Open Board Found",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+
+    def on_mark_owned(self, event):
+        selections = self.list_ctrl.GetSelections()
+        if not selections:
+            wx.MessageBox("Select one or more rows first, then click '✓ I Own This'.",
+                          "No Row Selected", wx.OK | wx.ICON_INFORMATION)
+            return
+
+        saved = 0
+        for item in selections:
+            row_idx = self.list_ctrl.ItemToRow(item)
+            if row_idx == wx.NOT_FOUND or row_idx >= len(self.visible_results):
+                continue
+            grp = self.visible_results[row_idx]
+            if grp.status == "DNP":
+                continue
+
+            if grp.matched_component and grp.status == "LOW_STOCK":
+                grp.matched_component.quantity = max(grp.matched_component.quantity, grp.needed_qty)
+                self.db.update_component(grp.matched_component)
+            else:
+                norm_val = None
+                if grp.category == "resistor":
+                    norm_val, _ = parse_resistor_value(grp.value)
+                elif grp.category == "capacitor":
+                    norm_val, _ = parse_capacitor_value(grp.value)
+                elif grp.category == "inductor":
+                    norm_val, _ = parse_inductor_value(grp.value)
+
+                val_clean = grp.value.strip() if grp.value else ""
+                if val_clean in ("", "~", "-"):
+                    mpn_val = grp.mpn or grp.package or grp.footprint
+                    val_store = grp.package or grp.footprint or val_clean
+                else:
+                    mpn_val = grp.mpn or val_clean
+                    val_store = val_clean
+
+                comp = Component(
+                    category=grp.category,
+                    mpn=mpn_val,
+                    clean_mpn=clean_mpn(mpn_val),
+                    value=val_store,
+                    norm_value=norm_val,
+                    package=grp.package,
+                    package_raw=grp.footprint,
+                    quantity=max(grp.needed_qty, 1),
+                    distributor="Manual",
+                    distributor_sku=grp.lcsc,
+                    notes="Marked as owned",
+                )
+                self.db.add_component(comp)
+            saved += 1
+
+        if saved:
+            if self.on_data_updated:
+                self.on_data_updated()
+            else:
+                self.run_verification()
 
     def on_browse_file(self, event):
         wildcard = "KiCad Files (*.kicad_pcb;*.kicad_sch;*.csv)|*.kicad_pcb;*.kicad_sch;*.csv"
@@ -218,7 +309,7 @@ class VerifierPanel(wx.Panel):
             wx.MessageBox("No missing or low stock parts! Everything is in stock.", "Great News", wx.OK | wx.ICON_INFORMATION)
             return
 
-        lines = ["KiCad-StockCheck Missing Parts:"]
+        lines = ["KiCad-Ledger Missing Parts:"]
         for g in missing:
             shortage = g.needed_qty - g.available_qty
             lines.append(f"- Need {shortage}x {g.value} (Package: {g.package}, Category: {g.category}) for {', '.join(g.references)}")

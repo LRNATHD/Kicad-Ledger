@@ -27,6 +27,29 @@ namespace KiCadStockCheck
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll")]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("user32.dll")]
+        private static extern bool AllowSetForegroundWindow(int dwProcessId);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        private const int ASFW_ANY = -1;
+
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
         private const int SW_RESTORE = 9;
         private const int SW_SHOW = 5;
 
@@ -127,7 +150,7 @@ namespace KiCadStockCheck
         {
             _trayMenu = new ContextMenuStrip();
 
-            var itemOpen = new ToolStripMenuItem("Open StockCheck", null, (s, e) => ShowOrLaunchUI());
+            var itemOpen = new ToolStripMenuItem("Open KiCad-Ledger", null, (s, e) => ShowOrLaunchUI());
             itemOpen.Font = new Font(itemOpen.Font, FontStyle.Bold);
             _trayMenu.Items.Add(itemOpen);
 
@@ -160,7 +183,7 @@ namespace KiCadStockCheck
             _trayIcon = new NotifyIcon
             {
                 Icon = trayIco,
-                Text = "KiCad-StockCheck (Ctrl+Shift+I)",
+                Text = "KiCad-Ledger (Ctrl+Shift+I)",
                 Visible = true,
                 ContextMenuStrip = _trayMenu
             };
@@ -199,13 +222,17 @@ namespace KiCadStockCheck
                             StaticLog("Hotkey pressed with KiCad active! Triggering UI popup.");
                             ShowOrLaunchUI();
                         }
+                        else
+                        {
+                            StaticLog("Hotkey pressed, but foreground window is not KiCad.");
+                        }
                     }
                     else if (!hotkeyPressed)
                     {
                         wasPressed = false;
                     }
 
-                    Thread.Sleep(30);
+                    Thread.Sleep(15);
                 }
                 catch
                 {
@@ -218,6 +245,21 @@ namespace KiCadStockCheck
         {
             IntPtr hwnd = GetForegroundWindow();
             if (hwnd == IntPtr.Zero) return false;
+
+            try
+            {
+                uint pid = 0;
+                GetWindowThreadProcessId(hwnd, out pid);
+                if (pid != 0)
+                {
+                    string procName = Process.GetProcessById((int)pid).ProcessName.ToLowerInvariant();
+                    if (procName.Contains("kicad") || procName.Contains("pcbnew") || procName.Contains("eeschema"))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch { }
 
             var sb = new StringBuilder(512);
             GetWindowText(hwnd, sb, sb.Capacity);
@@ -246,8 +288,7 @@ namespace KiCadStockCheck
 
             if (existingWnd != IntPtr.Zero)
             {
-                ShowWindow(existingWnd, SW_RESTORE);
-                SetForegroundWindow(existingWnd);
+                ForceForeground(existingWnd);
                 return;
             }
 
@@ -261,6 +302,7 @@ namespace KiCadStockCheck
             try
             {
                 StaticLog("Launching GUI via pythonw.exe...");
+                AllowSetForegroundWindow(ASFW_ANY);
                 var psi = new ProcessStartInfo
                 {
                     FileName = _pythonwPath,
@@ -278,6 +320,33 @@ namespace KiCadStockCheck
             }
         }
 
+        private static void ForceForeground(IntPtr hWnd)
+        {
+            IntPtr fg = GetForegroundWindow();
+            uint dummy;
+            uint fgTid = fg != IntPtr.Zero ? GetWindowThreadProcessId(fg, out dummy) : 0;
+            uint curTid = GetCurrentThreadId();
+            bool attached = false;
+            if (fgTid != 0 && fgTid != curTid)
+            {
+                attached = AttachThreadInput(curTid, fgTid, true);
+            }
+            try
+            {
+                ShowWindow(hWnd, SW_RESTORE);
+                SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                SetForegroundWindow(hWnd);
+            }
+            finally
+            {
+                if (attached)
+                {
+                    AttachThreadInput(curTid, fgTid, false);
+                }
+            }
+        }
+
         private static IntPtr FindStockCheckWindow()
         {
             IntPtr found = IntPtr.Zero;
@@ -286,7 +355,7 @@ namespace KiCadStockCheck
             {
                 try
                 {
-                    if (p.MainWindowHandle != IntPtr.Zero && p.MainWindowTitle.StartsWith("KiCad-StockCheck", StringComparison.OrdinalIgnoreCase))
+                    if (p.MainWindowHandle != IntPtr.Zero && p.MainWindowTitle.StartsWith("KiCad-Ledger", StringComparison.OrdinalIgnoreCase))
                     {
                         found = p.MainWindowHandle;
                         break;
@@ -300,7 +369,7 @@ namespace KiCadStockCheck
         private string GetStartupShortcutPath()
         {
             string startup = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
-            return Path.Combine(startup, "KiCad_StockCheck.lnk");
+            return Path.Combine(startup, "KiCad_Ledger.lnk");
         }
 
         private bool IsStartupEnabled()
@@ -332,9 +401,9 @@ namespace KiCadStockCheck
                 Type shellType = Type.GetTypeFromProgID("WScript.Shell");
                 dynamic shell = Activator.CreateInstance(shellType);
                 dynamic shortcut = shell.CreateShortcut(shortcutPath);
-                shortcut.TargetPath = Path.Combine(_repoDir, "KiCad-StockCheck.exe");
+                shortcut.TargetPath = Path.Combine(_repoDir, "KiCad-Ledger.exe");
                 shortcut.WorkingDirectory = _repoDir;
-                shortcut.Description = "KiCad-StockCheck Component Inventory & Board Verifier";
+                shortcut.Description = "KiCad-Ledger Component Inventory & Board Verifier";
                 shortcut.IconLocation = Path.Combine(_repoDir, "assets", "icon.ico");
                 shortcut.Save();
             }

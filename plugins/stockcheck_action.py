@@ -21,7 +21,7 @@ try:
         """ActionPlugin integrated directly into KiCad PCB Editor."""
 
         def defaults(self):
-            self.name = "StockCheck: Verify Components & Inventory"
+            self.name = "KiCad-Ledger: Verify Components & Inventory"
             self.category = "Manufacturing / BOM"
             self.description = "Instantly verify board components against your local on-device inventory."
             self.show_on_toolbar = True
@@ -43,7 +43,7 @@ try:
             board_name = os.path.basename(board.GetFileName()) if board.GetFileName() else "Active KiCad Board"
 
             # Create or bring up main frame
-            frame = StockCheckFrame(None, title=f"StockCheck — {board_name}", board_items=items, board_name=board_name)
+            frame = StockCheckFrame(None, title=f"KiCad-Ledger — {board_name}", board_items=items, board_name=board_name)
             frame.Show()
             frame.Raise()
 
