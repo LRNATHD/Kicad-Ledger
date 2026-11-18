@@ -150,21 +150,15 @@ class StockCheckFrame(wx.Frame):
         sizer.Add(priv_sizer, 0, wx.EXPAND | wx.ALL, 10)
 
         # Integration Box
-        box_int = wx.StaticBox(panel, label="KiCad Integration & Hotkeys")
+        box_int = wx.StaticBox(panel, label="System Tray & Hotkey")
         int_sizer = wx.StaticBoxSizer(box_int, wx.VERTICAL)
 
         int_desc = (
-            "KiCad Action Plugin:\n"
-            "Allows launching StockCheck directly inside KiCad PCB Editor toolbar or with a KiCad hotkey.\n"
-            "Global KiCad Hotkey Daemon:\n"
-            "Monitors Ctrl+Shift+I (or F8). It checks whether KiCad is the foreground window and only opens\n"
-            "when you are in KiCad. When working in any other app (Chrome, VS Code, etc.), it ignores the key."
+            "KiCad-Ledger runs in your Windows system tray.\n"
+            "Press Ctrl+Shift+I while KiCad is focused to pop it up, or click the tray icon.\n"
+            "You can disable the Ctrl+Shift+I hotkey anytime from the tray icon right-click menu."
         )
         int_sizer.Add(wx.StaticText(panel, label=int_desc), 0, wx.ALL, 6)
-
-        btn_install = wx.Button(panel, label="⚡ Install KiCad PCB Action Plugin")
-        btn_install.Bind(wx.EVT_BUTTON, self.on_install_plugin)
-        int_sizer.Add(btn_install, 0, wx.ALL, 6)
 
         sizer.Add(int_sizer, 0, wx.EXPAND | wx.ALL, 10)
 
@@ -180,15 +174,6 @@ class StockCheckFrame(wx.Frame):
 
         panel.SetSizer(sizer)
         return panel
-
-    def on_install_plugin(self, event):
-        """Installs KiCad Action Plugin into user's KiCad plugin directory."""
-        from install_kicad_plugin import install_plugin
-        success, message = install_plugin()
-        if success:
-            wx.MessageBox(message, "KiCad Plugin Installed", wx.OK | wx.ICON_INFORMATION)
-        else:
-            wx.MessageBox(f"Plugin installation error:\n{message}", "Error", wx.OK | wx.ICON_ERROR)
 
     def on_wipe_data(self, event):
         if wx.MessageBox("Are you sure you want to delete ALL inventory items and imported orders?",

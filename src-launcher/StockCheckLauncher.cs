@@ -56,15 +56,16 @@ namespace KiCadStockCheck
         private const int VK_SHIFT = 0x10;
         private const int VK_CONTROL = 0x11;
         private const int VK_I = 0x49;
-        private const int VK_F8 = 0x77;
 
         private static Mutex _appMutex;
         private NotifyIcon _trayIcon;
         private ContextMenuStrip _trayMenu;
+        private ToolStripMenuItem _menuHotkey;
         private ToolStripMenuItem _menuStartup;
         private Thread _hotkeyThread;
         private System.Windows.Forms.Timer _promoteTimer;
         private bool _running = true;
+        private volatile bool _hotkeyEnabled = true;
 
         private string _repoDir;
         private string _pythonwPath;
@@ -128,6 +129,7 @@ namespace KiCadStockCheck
                 _pythonwPath = "pythonw.exe";
             }
 
+            LoadConfig();
             InitTray();
             StaticLog("Tray icon created and visible.");
 
@@ -143,7 +145,7 @@ namespace KiCadStockCheck
             // Background hotkey listener
             _hotkeyThread = new Thread(HotkeyListenerLoop) { IsBackground = true };
             _hotkeyThread.Start();
-            StaticLog("Hotkey listener active. Listening for Ctrl+Shift+I and F8 when KiCad is focused.");
+            StaticLog("Hotkey listener active. Listening for Ctrl+Shift+I when KiCad is focused.");
         }
 
         private void InitTray()
@@ -159,6 +161,10 @@ namespace KiCadStockCheck
             _trayMenu.Items.Add("Import Orders...", null, (s, e) => ShowOrLaunchUI());
 
             _trayMenu.Items.Add(new ToolStripSeparator());
+
+            _menuHotkey = new ToolStripMenuItem("Enable Hotkey (Ctrl+Shift+I)", null, (s, e) => ToggleHotkey());
+            _menuHotkey.Checked = _hotkeyEnabled;
+            _trayMenu.Items.Add(_menuHotkey);
 
             _menuStartup = new ToolStripMenuItem("Start with Windows", null, (s, e) => ToggleStartup());
             _menuStartup.Checked = IsStartupEnabled();
@@ -207,12 +213,18 @@ namespace KiCadStockCheck
             {
                 try
                 {
+                    if (!_hotkeyEnabled)
+                    {
+                        wasPressed = false;
+                        Thread.Sleep(50);
+                        continue;
+                    }
+
                     bool ctrl = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
                     bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                     bool iKey = (GetAsyncKeyState(VK_I) & 0x8000) != 0;
-                    bool f8Key = (GetAsyncKeyState(VK_F8) & 0x8000) != 0;
 
-                    bool hotkeyPressed = (ctrl && shift && iKey) || f8Key;
+                    bool hotkeyPressed = ctrl && shift && iKey;
 
                     if (hotkeyPressed && !wasPressed)
                     {
@@ -364,6 +376,46 @@ namespace KiCadStockCheck
                 catch { }
             }
             return found;
+        }
+
+        private string GetConfigPath()
+        {
+            return Path.Combine(_repoDir, "config.json");
+        }
+
+        private void LoadConfig()
+        {
+            try
+            {
+                string cfg = GetConfigPath();
+                if (File.Exists(cfg))
+                {
+                    string txt = File.ReadAllText(cfg);
+                    if (txt.IndexOf("\"hotkey_enabled\": false", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        _hotkeyEnabled = false;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SaveConfig()
+        {
+            try
+            {
+                string json = string.Format("{{\r\n  \"hotkey_enabled\": {0}\r\n}}\r\n", _hotkeyEnabled ? "true" : "false");
+                File.WriteAllText(GetConfigPath(), json);
+            }
+            catch { }
+        }
+
+        private void ToggleHotkey()
+        {
+            _hotkeyEnabled = !_hotkeyEnabled;
+            _menuHotkey.Checked = _hotkeyEnabled;
+            SaveConfig();
+            StaticLog("Hotkey (Ctrl+Shift+I) " + (_hotkeyEnabled ? "enabled" : "disabled") + ".");
         }
 
         private string GetStartupShortcutPath()
